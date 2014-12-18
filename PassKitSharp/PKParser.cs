@@ -265,11 +265,11 @@ namespace PassKitSharp
             if (json["associatedStoreIdentifiers"] != null)
             {
                 if (p.AssociatedStoreIdentifiers == null)
-                    p.AssociatedStoreIdentifiers = new List<string>();
+                    p.AssociatedStoreIdentifiers = new List<int>();
 
                 var idarr = (JArray)json["associatedStoreIdentifiers"];
                 foreach (var ida in idarr)
-                    p.AssociatedStoreIdentifiers.Add(ida.ToString());
+                    p.AssociatedStoreIdentifiers.Add((int)ida);
             }
 
             if (json["locations"] != null && json["locations"] is JArray)

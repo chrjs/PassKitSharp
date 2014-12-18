@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Ionic.Zip;
+using System.Security.Cryptography.X509Certificates;
 
 namespace PassKitSharp
 {
@@ -35,7 +36,7 @@ namespace PassKitSharp
         public string LogoText { get; set; }
         public DateTime? RelevantDate { get; set; }
         public PKLocationList Locations { get; set; }
-        public List<string> AssociatedStoreIdentifiers { get; set; }
+        public List<int> AssociatedStoreIdentifiers { get; set; }
         public PKBarcode Barcode { get; set; }
 
         public PKPassType PassType { get; set; }
@@ -58,19 +59,9 @@ namespace PassKitSharp
             return PKParser.Parse(stream, loadHighResImages);
         }
 
-        public void Write(string passKitFilename, string certificateFilename)
+        public void Write(string passKitFilename, X509Certificate2 signingCertificate, X509Certificate2Collection chainCertificates)
         {
-            PKWriter.Write(this, passKitFilename, certificateFilename);
-        }
-
-        public void Write(string passKitFilename, byte[] certificateData)
-        {
-            PKWriter.Write(this, passKitFilename, certificateData);
-        }
-
-        public void Write(string passKitFilename, System.Security.Cryptography.X509Certificates.X509Certificate2 certificate)
-        {
-            PKWriter.Write(this, passKitFilename, certificate);
+            PKWriter.Write(this, passKitFilename, signingCertificate, chainCertificates);
         }
     }
 }

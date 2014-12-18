@@ -19,19 +19,8 @@ namespace PassKitSharp
 {
     public class PKWriter
     {
-        public static void Write(PassKit passKit, string file, string certificateFilename)
+      public static void Write(PassKit passKit, string file, X509Certificate2 signingCertificate, X509Certificate2Collection chainCertificates)
         {
-            Write(passKit, file, new X509Certificate2(certificateFilename));
-        }
-
-        public static void Write(PassKit passKit, string file, byte[] certificateData)
-        {
-            Write(passKit, file, new X509Certificate2(certificateData));
-        }
-
-        public static void Write(PassKit passKit, string file, X509Certificate2 certificate)
-        {
-            
             var manifestHashes = new Dictionary<string, string>();
 
             using (var zipFile = new ZipFile(file))
@@ -123,13 +112,13 @@ namespace PassKitSharp
                 }
 
 
-                WriteManifest(passKit, zipFile, manifestHashes, certificate);
+                WriteManifest(passKit, zipFile, manifestHashes, signingCertificate, chainCertificates);
 
                 zipFile.Save();
             }
         }
 
-        static void WriteManifest(PassKit pk, ZipFile zipFile, Dictionary<string, string> manifestHashes, X509Certificate2 certificate)
+        static void WriteManifest(PassKit pk, ZipFile zipFile, Dictionary<string, string> manifestHashes, X509Certificate2 signingCertificate,  X509Certificate2Collection chainCertificates)
         {
             var json = new JObject();
 
@@ -143,7 +132,7 @@ namespace PassKitSharp
 
             zipFile.AddEntry("manifest.json", data);
 
-            SignManifest(zipFile, data, certificate);
+            SignManifest(zipFile, data, signingCertificate, chainCertificates);
         }
 
         
@@ -312,23 +301,21 @@ namespace PassKitSharp
             return json;
         }
 
-        static void SignManifest(ZipFile zipFile, byte[] manifestFileData, X509Certificate2 certificate)
+        static void SignManifest(ZipFile zipFile, byte[] manifestFileData, X509Certificate2 signingCertificate, X509Certificate2Collection chainCertificates)
         {
-            var cert = DotNetUtilities.FromX509Certificate(certificate);
-
-            var privateKey = DotNetUtilities.GetKeyPair(certificate.PrivateKey).Private;
-            var generator = new CmsSignedDataGenerator();
-
-            generator.AddSigner(privateKey, cert, CmsSignedDataGenerator.DigestSha1);
+            var signingCert = DotNetUtilities.FromX509Certificate(signingCertificate);
 
             var certList = new System.Collections.ArrayList();
-            //var a1Cert = new X509Certificate2(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppleWWDRCA.cer"));
-            //var a2Cert = new X509Certificate2(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppleIncRootCertificate.cer"));
+            foreach (X509Certificate2 cert in chainCertificates)
+            {
+              certList.Add(DotNetUtilities.FromX509Certificate(cert));
+            }
 
-            certList.Add(cert);
-            //certList.Add(DotNetUtilities.FromX509Certificate(a1Cert));
-            //certList.Add(DotNetUtilities.FromX509Certificate(a2Cert));
-            
+            var privateKey = DotNetUtilities.GetKeyPair(signingCertificate.PrivateKey).Private;
+            var generator = new CmsSignedDataGenerator();
+
+            generator.AddSigner(privateKey, signingCert, CmsSignedDataGenerator.DigestSha1);
+
             Org.BouncyCastle.X509.Store.X509CollectionStoreParameters PP = new Org.BouncyCastle.X509.Store.X509CollectionStoreParameters(certList);
             Org.BouncyCastle.X509.Store.IX509Store st1 = Org.BouncyCastle.X509.Store.X509StoreFactory.Create("CERTIFICATE/COLLECTION", PP);
             
@@ -340,7 +327,18 @@ namespace PassKitSharp
             var data = signedData.GetEncoded();
 
             zipFile.AddEntry("signature", data);   
-        }      
+        }
+
+        static X509Certificate2 GetCertBySubject(X509Certificate2Collection certificates, string fragment)
+        {
+          foreach (X509Certificate2 cert in certificates)
+          {
+            if (cert.FriendlyName.Contains(fragment))
+              return cert;
+          }
+
+          return null;
+        }
 
         static string CalculateSHA1(byte[] buffer)
         {
